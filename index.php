@@ -36,15 +36,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     elseif ($action === 'edit_deal') {
-        if (isset($deals[$post['id']]) && !empty($post['name'])) {
+    if (isset($deals[$post['id']])) {
+        if (isset($post['name'])) {
+            if (empty($post['name'])) {
+                echo json_encode(['success' => false, 'error' => 'Название сделки обязательно']);
+                exit;
+            }
             $deals[$post['id']]['name'] = $post['name'];
-            $deals[$post['id']]['summ'] = $post['summ'] ?? '';
-            saveData('deals', $deals);
-            $response = ['success' => true];
-        } else {
-            $response['error'] = 'Название сделки обязательно';
         }
+        if (isset($post['summ'])) {
+            $deals[$post['id']]['summ'] = $post['summ'];
+        }
+        saveData('deals', $deals);
+        $response = ['success' => true];
+    } else {
+        $response['error'] = 'Сделка не найдена';
     }
+}
 
     elseif ($action === 'delete_deal' && isset($deals[$post['id']])) {
         unset($deals[$post['id']]);
@@ -69,15 +77,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     
     elseif ($action === 'edit_contact') {
-        if (isset($contacts[$post['id']]) && !empty($post['name'])) {
+    if (isset($contacts[$post['id']])) {
+        if (isset($post['name'])) {
+            if (empty($post['name'])) {
+                echo json_encode(['success' => false, 'error' => 'Имя контакта обязательно']);
+                exit;
+            }
             $contacts[$post['id']]['name'] = $post['name'];
-            $contacts[$post['id']]['surname'] = $post['surname'] ?? '';
-            saveData('contacts', $contacts);
-            $response = ['success' => true];
-        } else {
-            $response['error'] = 'Имя контакта обязательно';
         }
+        if (isset($post['surname'])) {
+            $contacts[$post['id']]['surname'] = $post['surname'];
+        }
+        saveData('contacts', $contacts);
+        $response = ['success' => true];
+    } else {
+        $response['error'] = 'Контакт не найден';
     }
+}
 
     elseif ($action === 'delete_contact' && isset($contacts[$post['id']])) {
         unset($contacts[$post['id']]);
@@ -287,113 +303,120 @@ if ($selectedItemId) {
     </div>
 
     <script>
-        $(document).ready(function() {
-            $('.editable').click(function() {
-                const field = $(this).data('field');
-                const id = $(this).data('id');
-                const value = $(this).text().trim();
-                
-                $(this).html(`<input type="text" class="edit-input" value="${value}" data-field="${field}" data-id="${id}">`);
-                $(this).find('input').focus();
-                
-                $(this).find('input').keypress(function(e) {
-                    if (e.which === 13) {
-                        saveField($(this));
-                    }
-                });
-                
-                $(this).find('input').blur(function() {
+    $(document).ready(function() {
+        $('.editable').click(function() {
+            const field = $(this).data('field');
+            const id = $(this).data('id');
+            const value = $(this).text().trim();
+            
+            $(this).html(`<input type="text" class="edit-input" value="${value}" data-field="${field}" data-id="${id}">`);
+            $(this).find('input').focus();
+            
+            $(this).find('input').keypress(function(e) {
+                if (e.which === 13) {
                     saveField($(this));
-                });
+                }
             });
             
-            $('.relations-select').change(function() {
-                const type = $(this).data('type');
-                const id = $(this).data('id');
-                const selected = $(this).val() || [];
-                
-                $.post('?action=update_relations', {
-                    type: type,
-                    id: id,
-                    [type === 'deal' ? 'contacts' : 'deals']: selected
-                }, function(response) {
-                    if (!response.success) {
-                        alert('Ошибка при сохранении связей');
-                    }
-                }, 'json');
+            $(this).find('input').blur(function() {
+                saveField($(this));
             });
         });
         
-        function saveField(input) {
-            const field = input.data('field');
-            const id = input.data('id');
-            const value = input.val().trim();
-            const type = window.location.href.includes('menu=deals') ? 'deal' : 'contact';
+        $('.relations-select').change(function() {
+            const type = $(this).data('type');
+            const id = $(this).data('id');
+            const selected = $(this).val() || [];
             
-            if ((field === 'name' || field === 'name') && value === '') {
+            $.post('?action=update_relations', {
+                type: type,
+                id: id,
+                [type === 'deal' ? 'contacts' : 'deals']: selected
+            }, function(response) {
+                if (!response.success) {
+                    alert('Ошибка при сохранении связей');
+                }
+            }, 'json');
+        });
+    });
+    
+    function saveField(input) {
+        const field = input.data('field');
+        const id = input.data('id');
+        const value = input.val().trim();
+        const type = window.location.href.includes('menu=deals') ? 'deal' : 'contact';
+        
+        const data = { id: id };
+        data[field] = value;
+        
+        if (field === 'name') {
+            if (value === '') {
                 alert('Это поле обязательно для заполнения');
                 input.focus();
                 return;
             }
-            
-            $.post(`?action=edit_${type}`, {
-                id: id,
-                [field]: value
-            }, function(response) {
-                if (response.success) {
-                    input.parent().text(value);
-                } else {
-                    alert(response.error || 'Ошибка при сохранении');
-                }
-            }, 'json');
         }
         
-        function showAddForm(type) {
-            $('#add-deal-form, #add-contact-form').hide();
-            $(`#add-${type}-form`).show();
-            $(`#${type}-name`).focus();
-        }
-        
-        function addItem(type) {
-            const nameField = $(`#${type}-name`);
-            const name = nameField.val().trim();
-            
-            if (name === '') {
-                alert('Поле имени обязательно для заполнения');
-                nameField.focus();
-                return;
-            }
-            
-            const data = {
-                name: name
-            };
-            
-            if (type === 'deal') {
-                data.summ = $('#deal-summ').val().trim();
+        $.post(`?action=edit_${type}`, data, function(response) {
+            if (response.success) {
+                input.parent().text(value);
             } else {
-                data.surname = $('#contact-surname').val().trim();
+                alert(response.error || 'Ошибка при сохранении');
+
+                input.parent().text(input.parent().data('prev-value') || '');
             }
-            
-            $.post(`?action=add_${type}`, data, function(response) {
+        }, 'json').fail(function() {
+            alert('Ошибка соединения');
+            input.parent().text(input.parent().data('prev-value') || '');
+        });
+    }
+    
+    function showAddForm(type) {
+        $('#add-deal-form, #add-contact-form').hide();
+        $(`#add-${type}-form`).show();
+        $(`#${type}-name`).focus();
+    }
+    
+    function addItem(type) {
+        const nameField = $(`#${type}-name`);
+        const name = nameField.val().trim();
+        
+        if (name === '') {
+            alert('Поле имени обязательно для заполнения');
+            nameField.focus();
+            return;
+        }
+        
+        const data = {
+            name: name
+        };
+        
+        if (type === 'deal') {
+            data.summ = $('#deal-summ').val().trim();
+        } else {
+            data.surname = $('#contact-surname').val().trim();
+        }
+        
+        $.post(`?action=add_${type}`, data, function(response) {
+            if (response.success) {
+                location.href = `?menu=${type}s&id=${response.id}`;
+            } else {
+                alert(response.error || 'Ошибка при добавлении');
+            }
+        }, 'json');
+    }
+    
+    function deleteItem(type, id) {
+        if (confirm(`Вы уверены, что хотите удалить этот ${type === 'deal' ? 'сделку' : 'контакт'}?`)) {
+            $.post(`?action=delete_${type}`, {id: id}, function(response) {
                 if (response.success) {
-                    location.href = `?menu=${type}s&id=${response.id}`;
+                    location.href = `?menu=${type}s`;
                 } else {
-                    alert(response.error || 'Ошибка при добавлении');
+                    alert('Ошибка при удалении');
                 }
             }, 'json');
         }
-        
-        function deleteItem(type, id) {
-            if (confirm(`Вы уверены, что хотите удалить этот ${type === 'deal' ? 'сделку' : 'контакт'}?`)) {
-                $.post(`?action=delete_${type}`, {id: id}, function(response) {
-                    if (response.success) {
-                        location.href = `?menu=${type}s`;
-                    } else {
-                        alert('Ошибка при удалении');
-                    }
-                }, 'json');
-            }
-        }
-    </script>
+    }
+</script>
 </body>
 </html>
